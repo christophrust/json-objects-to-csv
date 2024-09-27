@@ -149,6 +149,7 @@
 
 use flatten_json_object::ArrayFormatting;
 use serde_json::{Deserializer, Value};
+use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::io::Seek;
@@ -235,16 +236,16 @@ impl Json2Csv {
     /// Will return `Err` if `objects` does not contain actual JSON objects. It will also report an
     /// error if two objects have keys that should be different but end looking the same after
     /// flattening, and if writing the CSV fails.
-    pub fn convert_from_array(
+    pub fn convert_from_array<'a, It: IntoIterator<Item = impl Borrow<Value>>>(
         self,
-        objects: &[Value],
+        objects: It,
         mut csv_writer: csv::Writer<impl Write>,
     ) -> Result<(), error::Error> {
         // We have to flatten the JSON object since there is no other way to convert nested objects to CSV
         let mut orig_flat_maps = Vec::<serde_json::value::Map<String, Value>>::new();
 
         for obj in objects {
-            let obj = self.flattener.flatten(obj)?;
+            let obj = self.flattener.flatten(obj.borrow())?;
             if let Value::Object(map) = obj {
                 orig_flat_maps.push(map);
             } else {
@@ -441,7 +442,7 @@ mod tests {
             .delimiter(b',')
             .from_writer(&mut output_from_array);
         Json2Csv::new(flattener.clone())
-            .convert_from_array(&input_from_array, csv_writer_from_array)
+            .convert_from_array(input_from_array.clone(), csv_writer_from_array)
             .unwrap();
 
         let output_from_file = str::from_utf8(&output_from_file).unwrap();
